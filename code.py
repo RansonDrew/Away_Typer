@@ -1,4 +1,7 @@
-"""NeoKey Trinkey Capacitive Touch and HID Keyboard example"""
+# This project uses an Adafruit Neokey Trinkey to enter keyboard input to keep
+# Final Fantasy IXV from activating the automatic log out. Pushing the button on
+# the Trinkey should start regular keyboard entry. Pushing it again should stop
+# the keyboard entry.
 import time
 import board
 import neopixel
@@ -7,9 +10,17 @@ from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.keyboard_layout_us import KeyboardLayoutUS
 from adafruit_hid.keycode import Keycode  # pylint: disable=unused-import
 from digitalio import DigitalInOut, Pull
-import touchio
 
-print("NeoKey Trinkey HID")
+
+print("NeoKey Trinkey FFXIV 'Away' Typer")
+
+# some default variables to get us started
+firstrun = True
+freq = 10
+secs = 0
+mins = 0
+total_minutes = 0
+base_cmd = 'fc '
 
 # create the pixel and turn it off
 pixel = neopixel.NeoPixel(board.NEOPIXEL, 1, brightness=0.1)
@@ -24,78 +35,50 @@ button = DigitalInOut(board.SWITCH)
 button.switch_to_input(pull=Pull.DOWN)
 button_state = False
 
-# create the captouch element and start it with not touched
-touch = touchio.TouchIn(board.TOUCH)
-touch_state = False
-
-# print a string on keypress
-"""key_output = "Hello World!\n"""
-
-key_output = (
-    {'keys': "/", 'delay': 0.5},
-    {'keys': "fc Here is some text to go in the chat.\n", 'delay': 0.1}
-)
-
-# one character on keypress
-# key_output = Keycode.A
-
-# multiple simultaneous keypresses
-# key_output = (Keycode.SHIFT, Keycode.A)  # capital A
-# key_output = (Keycode.CONTROL, Keycode.ALT, Keycode.DELETE) # three finger salute!
-
-# complex commands! we make a list of dictionary entries for each command
-# each line has 'keys' which is either a single key, a list of keys, or a string
-# then the 'delay' is in seconds, since we often need to give the computer a minute
-# before doing something!
-
-# this will open up a notepad in windows, and ducky the user
-"""
-key_output = (
-   {'keys': Keycode.GUI, 'delay': 0.1},
-   {'keys': "notepad\n", 'delay': 1},  # give it a moment to launch!
-   {'keys': "YOU HAVE BEEN DUCKIED!", 'delay': 0.1},
-   {'keys': (Keycode.ALT, Keycode.O), 'delay': 0.1}, # open format menu
-   {'keys': Keycode.F, 'delay': 0.1}, # open font submenu
-   {'keys': "\t\t100\n", 'delay': 0.1}, # tab over to font size, enter 100
-)
-"""
-
-
-# our helper function will press the keys themselves
-def make_keystrokes(keys, delay):
-    if isinstance(keys, str):  # If it's a string...
-        keyboard_layout.write(keys)  # ...Print the string
-    elif isinstance(keys, int):  # If its a single key
-        keyboard.press(keys)  # "Press"...
-        keyboard.release_all()  # ..."Release"!
-    elif isinstance(keys, (list, tuple)):  # If its multiple keys
-        keyboard.press(*keys)  # "Press"...
-        keyboard.release_all()  # ..."Release"!
-    time.sleep(delay)
-
-
 while True:
     if button.value and not button_state:
-        pixel.fill((255, 0, 255))
-        print("Button pressed.")
+        pixel.fill((0, 196, 0))
+        print("Button pressed and now we begin...")
+        print("After entering an initial command, a regular command will be entered every %s minutes" % (freq))
+        time.sleep(0.1)
         button_state = True
 
-    if not button.value and button_state:
+    if button.value and button_state:
         pixel.fill(0x0)
-        print("Button released.")
-        if isinstance(key_output, (list, tuple)) and isinstance(key_output[0], dict):
-            for k in key_output:
-                make_keystrokes(k['keys'], k['delay'])
-        else:
-            make_keystrokes(key_output, delay=0)
+        print("Button pressed again and now we stop.")
+        time.sleep(0.1)
+        firstrun = True
+        secs = 0
+        mins = 0
+        total_minutes = 0
         button_state = False
-
-    if touch.value and not touch_state:
-        print("Touched!")
-        pixel.fill((0, 255, 0))
-        touch_state = True
-    if not touch.value and touch_state:
-        print("Untouched!")
-        pixel.fill(0x0)
-        touch_state = False
-
+    if button_state:
+        pixel.fill((0,196,0))
+        if firstrun == True:
+            keyboard_layout.write('/')  # this will enter command mode in FFXIV
+            time.sleep(0.6) # give the interface time to register the slash and change modes
+            secs += 6 # keep the time right
+            keyboard_layout.write(base_cmd)  # some kind of command like fc or ls or an emote
+            time.sleep(0.1) # slight delay
+            secs += 1 # keep the time right
+            keyboard_layout.write("For the foreseeable future, I will be away. However, my presence will remain.\n")  # some kind of command like fc or ls or an emote
+            time.sleep(0.1) # slight delay
+            secs += 1 # keep the time right
+            firstrun = False
+        if mins == freq:
+            chat_txt = "It has been {h} hours and {m} minutes since I did that thing. \n".format(h = (total_minutes//60),m = (total_minutes%60))
+            keyboard_layout.write('/')  # this will enter command mode in FFXIV
+            time.sleep(0.6) # give the interface time to register the slash and change modes
+            keyboard_layout.write(base_cmd)  # some kind of command like fc or ls or an emote
+            time.sleep(0.1) # slight delay
+            keyboard_layout.write(chat_txt)  # some kind of command like fc or ls or an emote
+            time.sleep(0.1) # slight delay
+            secs = 0
+            mins = 0
+        time.sleep(0.1)
+        secs += 1
+        if secs == 600:
+            mins += 1
+            total_minutes += 1
+            secs = 0
+            print("%s Minutes have passed in this loop. %s hours and %s minutes have passed overall." % (mins,total_minutes//60,total_minutes%60))
